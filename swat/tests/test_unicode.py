@@ -110,6 +110,9 @@ class TestUnicode(tm.TestCase):
 
         f = swat.SASFormatter()
 
+        if not f._sw_formatter:
+            unittest.TestCase.skipTest(self, 'Formatter could not be created')
+
         self.assertTrue(isinstance(f.format(123.56, sasfmt='f10.5', width=20), unicode))
         self.assertEqual(f.format(123.56, sasfmt='f10.5', width=20), '123.56000')
 

@@ -68,6 +68,10 @@ def _option_handler(key, value):
         key = 'trace_actions'
     elif key == 'cas.trace_ui_actions':
         key = 'trace_ui_actions'
+    elif key == 'cas.trace_objects':
+        key = 'trace_objects'
+    elif key == 'cas.trace_strings':
+        key = 'trace_strings'
     else:
         return
 
@@ -215,9 +219,52 @@ class CAS(object):
     sessions = weakref.WeakValueDictionary()
     _sessioncount = 1
 
+    # Initialize all of the attributes below so that PyCharm will work.
+    # It uses __getattr__ to introspect objects.
+
+    # Setup static attributes
+    _hostname = None
+    _port = None
+    _username = None
+    _session = None
+    _soptions = None
+    _protocol = None
+
+    # Caches for action classes and reflection information
+    _action_classes = None
+    _action_info = None
+    _actionset_classes = None
+    _actionset_info = None
+
+    # Dictionary of result hook functions
+    _results_hooks = None
+
+    _dir = None
+    _name = None
+
     def __init__(self, hostname=None, port=None, username=None, password=None,
                  session=None, locale=None, nworkers=None, name=None,
                  authinfo=None, protocol=None, **kwargs):
+
+        # Setup static attributes
+        self._hostname = None
+        self._port = None
+        self._username = None
+        self._session = None
+        self._soptions = None
+        self._protocol = None
+
+        # Caches for action classes and reflection information
+        self._action_classes = {}
+        self._action_info = {}
+        self._actionset_classes = {}
+        self._actionset_info = {}
+
+        # Dictionary of result hook functions
+        self._results_hooks = {}
+
+        self._dir = []
+        self._name = ''
 
         # Check for explicitly specified authinfo files
         if authinfo is not None:
@@ -312,31 +359,11 @@ class CAS(object):
         # Set up index origin for error messages
         errorcheck(self._sw_connection.setZeroIndexedParameters(), self._sw_connection)
 
-        # Get instance structure values from connection layer
-        self._hostname = errorcheck(
-            a2u(self._sw_connection.getHostname(), 'utf-8'), self._sw_connection)
-        self._port = errorcheck(self._sw_connection.getPort(), self._sw_connection)
-        self._username = errorcheck(
-            a2u(self._sw_connection.getUsername(), 'utf-8'), self._sw_connection)
-        self._session = errorcheck(
-            a2u(self._sw_connection.getSession(), 'utf-8'), self._sw_connection)
-        self._soptions = errorcheck(
-            a2u(self._sw_connection.getSOptions(), 'utf-8'), self._sw_connection)
-        self._protocol = protocol
         if name:
             self._name = a2u(name)
         else:
             self._name = 'py-session-%d' % type(self)._sessioncount
             type(self)._sessioncount = type(self)._sessioncount + 1
-
-        # Caches for action classes and reflection information
-        self._action_classes = {}
-        self._action_info = {}
-        self._actionset_classes = {}
-        self._actionset_info = {}
-
-        # Dictionary of result hook functions
-        self._results_hooks = {}
 
         # Preload __dir__ information.  It will be extended later with action names
         self._dir = set([x for x in super_dir(CAS, self)])
@@ -374,9 +401,27 @@ class CAS(object):
             pass
 
         # Set options
-        self._set_option(print_messages=cf.get_option('cas.print_messages'))
-        self._set_option(trace_actions=cf.get_option('cas.trace_actions'))
-        self._set_option(trace_ui_actions=cf.get_option('cas.trace_ui_actions'))
+        self._set_option(trace_objects=cf.get_option('cas.trace_objects'))
+        self._set_option(trace_strings=cf.get_option('cas.trace_strings'))
+
+        # Always set to False; we'll print them ourselves.
+        self._set_option(print_messages=False)
+        self._set_option(trace_actions=False)
+        self._set_option(trace_ui_actions=False)
+
+        # Get instance structure values from connection layer.
+        # These calls must come after an action invocation so that the 
+        # connection is guaranteed to be up.
+        self._hostname = errorcheck(
+            a2u(self._sw_connection.getHostname(), 'utf-8'), self._sw_connection)
+        self._port = errorcheck(self._sw_connection.getPort(), self._sw_connection)
+        self._username = errorcheck(
+            a2u(self._sw_connection.getUsername(), 'utf-8'), self._sw_connection)
+        self._session = errorcheck(
+            a2u(self._sw_connection.getSession(), 'utf-8'), self._sw_connection)
+        self._soptions = errorcheck(
+            a2u(self._sw_connection.getSOptions(), 'utf-8'), self._sw_connection)
+        self._protocol = protocol
 
         # Add the connection to a global dictionary for use by IPython notebook
         type(self).sessions[self._session] = self
@@ -825,6 +870,13 @@ class CAS(object):
             name = str(name)
             typ = errorcheck(self._sw_connection.getOptionType(name),
                              self._sw_connection)
+
+            # Always look these up in the config, not the connection
+            if name in ['trace_actions', 'trace_ui_actions', 'print_messages']:
+                if value not in [True, False, 1, 0]:
+                    raise SWATError('%s is not a valid boolean value' % value)
+                value = False
+
             try:
                 if typ == 'boolean':
                     if value in [True, False, 1, 0]:
@@ -851,6 +903,7 @@ class CAS(object):
                                self._sw_connection)
             except TypeError:
                 raise SWATError('%s is not the correct type' % value)
+
         return True
 
     def copy(self):
@@ -945,9 +998,13 @@ class CAS(object):
             errorcheck(self._sw_connection.invoke(a2n(_name_), kwargs),
                        self._sw_connection)
         else:
-            errorcheck(self._sw_connection.invoke(a2n(_name_),
-                                                  py2cas(self._soptions,
-                                                         self._sw_error, **kwargs)),
+            _name_ = a2n(_name_)
+            params = py2cas(self._soptions, self._sw_error, **kwargs)
+            if cf.get_option('cas.trace_actions'):
+                is_ui = 'UI' in kwargs.get('_apptag', '').split(' ')
+                if not is_ui or (is_ui and cf.get_option('cas.trace_ui_actions')):
+                    print(self._sw_connection.getActionDebugSyntax(_name_, params))
+            errorcheck(self._sw_connection.invoke(_name_, params),
                        self._sw_connection)
         return self
 
@@ -1424,7 +1481,13 @@ class CAS(object):
             except:
                 pass
 
-        return self._get_results([(CASResponse(resp, connection=self), self)])
+        out = CASResponse(resp, connection=self)
+
+        if cf.get_option('cas.print_messages') and out.messages:
+            for msg in out.messages:
+                print(msg)
+
+        return self._get_results([(out, self)])
 
     def upload_file(self, data, importoptions=None, casout=None, **kwargs):
         '''
@@ -3219,6 +3282,9 @@ def getone(connection, datamsghandler=None):
                 connection._sw_connection), _sw_message)
             if _sw_response is not None:
                 output = CASResponse(_sw_response, connection=connection), connection
+                if cf.get_option('cas.print_messages'):
+                    for msg in output[0].messages:
+                        print(msg)
         elif mtype == 'request' and datamsghandler is not None:
             _sw_request = errorcheck(_sw_message.toRequest(
                 connection._sw_connection), _sw_message)
