@@ -56,6 +56,8 @@ def _import_pyswat():
     else:
         libname = '_pyswat'
 
+    libname = '_pyswat'
+
     # Bail out if we aren't on Linux
 #   if platform != 'linux':
 #       raise ValueError('Currently, Linux is the only platform with support '

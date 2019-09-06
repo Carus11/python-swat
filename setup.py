@@ -21,7 +21,7 @@
 import glob
 import io
 import os
-from setuptools import setup, find_packages
+from setuptools import setup, find_packages, Extension
 
 
 def get_file(fname):
@@ -40,13 +40,13 @@ setup(
     author='SAS',
     author_email='Kevin.Smith@sas.com',
     url='http://github.com/sassoftware/python-swat/',
-    license='Apache v2.0 (SWAT) + SAS Additional Functionality (SAS TK)',
+    license='Apache v2.0 (SWAT)',
     packages=find_packages(),
     package_data={
         'swat': ['lib/*/*.*', 'tests/datasources/*.*'],
     },
     install_requires=[
-        'pandas >= 0.16.0',
+        'pandas >= 0.18.0',
         'six >= 1.9.0',
         'requests',
     ],
@@ -63,6 +63,11 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Scientific/Engineering',
     ],
+    setup_requires=['setuptools-golang'],
+    build_golang={'root': 'python-swat'},
+    ext_modules=[Extension('_pyswat', ['gitlab.sas.com/kesmit/go-libswat',
+                                       'src/pyswat.c'])],
 )
