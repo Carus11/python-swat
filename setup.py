@@ -67,7 +67,7 @@ setup(
         'Topic :: Scientific/Engineering',
     ],
     setup_requires=['setuptools-golang'],
-    build_golang={'root': 'python-swat'},
-    ext_modules=[Extension('_pyswat', ['gitlab.sas.com/kesmit/go-libswat',
-                                       'src/pyswat.c'])],
+    build_golang={'root': 'pyswat'},
+    ext_modules=[Extension('_pyswat', ['src/pyswat.c',
+                                       'gitlab.sas.com/kesmit/go-libswat'])],
 )
