@@ -48,6 +48,26 @@ class BuildExtCommand(build_ext):
 
     def build_extension(self, ext):
         ''' Build libswat.a before building the extension '''
+        try:
+            self._check_call(['go', 'version'], os.getcwd(), {},
+                             stderr=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            raise RuntimeError('The Go tools do not appear to be installed.  '
+                               'Make sure that they are installed '
+                               '(see https://golang.org) and that the go '
+                               'command is in your system path.')
+
+        try:
+            self._check_call(['swig', '-version'], os.getcwd(), {},
+                             stderr=subprocess.DEVNULL,
+                             stdout=subprocess.DEVNULL)
+        except subprocess.CalledProcessError:
+            raise RuntimeError('SWIG does not appear to be installed.  '
+                               'Make sure that it is installed '
+                               '(see http://www.swig.org) and that the swig '
+                               'command is in your system path.')
+
         platform = sys.platform.lower()
         if platform.startswith('win'):
             platform = 'win'
@@ -90,6 +110,12 @@ class BuildExtCommand(build_ext):
                 if os.path.isfile('/usr/bin/gcc'):
                     env[str('CC')] = str('/usr/bin/gcc')
 
+            # Run swig to get the Python interface file
+            cmd = ['swig', '-outdir', src_path, '-python', '-builtin',
+                   '-module', 'pyswat', '-o', os.path.join(src_path, 'pyswat.c'), 
+                   os.path.join(root_path, 'swat.i')]
+            self._check_call(cmd, root_path, env)
+
             cmd = ['go', 'build', '-buildmode=c-archive'] + \
                   [x for x in os.environ.get('GO_BUILD_FLAGS', GO_BUILD_FLAGS).split() if x] + \
                   ['-o', libswat_a]
@@ -126,11 +152,11 @@ class BuildExtCommand(build_ext):
 
             build_ext.build_extension(self, ext)
 
-    def _check_call(self, cmd, cwd, env):
+    def _check_call(self, cmd, cwd, env, stdout=None, stderr=None):
         ''' Run command and check return value '''
         envparts = ['{}={}'.format(k, pipes.quote(v)) for k, v in sorted(tuple(env.items()))]
         print('$ {}'.format(' '.join(envparts + [pipes.quote(p) for p in cmd])), file=sys.stderr)
-        subprocess.check_call(cmd, cwd=cwd, env=dict(os.environ, **env))
+        subprocess.check_call(cmd, cwd=cwd, env=dict(os.environ, **env), stdout=stdout, stderr=stderr)
 
     @contextlib.contextmanager
     def _tmpdir(self):
@@ -184,5 +210,5 @@ setup(
     cmdclass={
         'build_ext': BuildExtCommand,
     },
-    ext_modules=[Extension('_pyswat', ['src/pyswat.c'])],
+    ext_modules=[Extension('_pyswat', [])],
 )
