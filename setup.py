@@ -90,6 +90,12 @@ class BuildExtCommand(build_ext):
                 if os.path.isfile('/usr/bin/gcc'):
                     env[str('CC')] = str('/usr/bin/gcc')
 
+            # Run swig to get the Python interface file
+            cmd = ['swig', '-outdir', src_path, '-python', '-builtin',
+                   '-module', 'pyswat', '-o', os.path.join(src_path, 'pyswat.c'), 
+                   os.path.join(root_path, 'swat.i')]
+            self._check_call(cmd, root_path, env)
+
             cmd = ['go', 'build', '-buildmode=c-archive'] + \
                   [x for x in os.environ.get('GO_BUILD_FLAGS', GO_BUILD_FLAGS).split() if x] + \
                   ['-o', libswat_a]
@@ -184,5 +190,5 @@ setup(
     cmdclass={
         'build_ext': BuildExtCommand,
     },
-    ext_modules=[Extension('_pyswat', ['src/pyswat.c'])],
+    ext_modules=[Extension('_pyswat', [])],
 )
