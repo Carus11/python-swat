@@ -28,111 +28,68 @@ import os
 import sys
 from .utils.compat import PY3, WIDE_CHARS, a2u
 from .exceptions import SWATError
+try:
+    _pyswat_loaded = False
+    import _pyswat
+    _pyswat_loaded = True
+except ImportError:
+    pass
+
 
 # pylint: disable=E1101
 
-_pyswat = None
-
-
-def _import_pyswat():
-    ''' Import version-specific _pyswat package '''
-    global _pyswat
-
-    import glob
-    import importlib
-    import os
-    import sys
-
-    platform = 'linux'
-    if sys.platform.lower().startswith('win'):
-        platform = 'win'
-    elif sys.platform.lower().startswith('darwin'):
-        platform = 'mac'
-
-    if PY3:
-        libname = '_py%s%sswat' % (sys.version_info[0], sys.version_info[1])
-    elif WIDE_CHARS:
-        libname = '_pyswatw'
-    else:
-        libname = '_pyswat'
-
-    # Bail out if we aren't on Linux
-#   if platform != 'linux':
-#       raise ValueError('Currently, Linux is the only platform with support '
-#                        'for the binary protocol.  You must connect to CAS '
-#                        'using the REST interface on this platform.')
-
-    # Bail out if the C extension doesn't exist
-    if not glob.glob(os.path.join(os.path.dirname(__file__), 'lib',
-                                  platform, libname + '.*')):
-        raise ValueError('The extensions for the binary protocol have not been '
-                         'installed.  You can either install them using the full '
-                         'platform-dependent install file, or use the REST interface '
-                         'as an alternative.')
-
-    # Make sure the correct libssl.so is used
-    libssl = list(sorted(glob.glob(os.path.join(sys.prefix, 'lib', 'libssl.so*'))))
-    if libssl:
-        os.environ['TKESSL_OPENSSL_LIB'] = libssl[-1]
-
-    # Try to import the C extension
-    try:
-        _pyswat = importlib.import_module('.lib.%s.%s' % (platform, libname),
-                                          package='swat')
-
-    except ImportError:
-        raise ValueError(('Could not import import %s.  This is likely due to an '
-                          'incorrect SAS TK path or an error while loading the SAS TK '
-                          'subsystem. You can try using the REST interface '
-                          'as an alternative.') % libname)
+def _pyswat_error():
+    raise ValueError('Could not import import C extension.  This is likely due to '
+                     'the SWAT package being installed from source rather than being '
+                     'compiled. You can try using the REST interface as an alternative.')
 
 
 def SW_CASConnection(*args, **kwargs):
     ''' Return a CASConnection (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.SW_CASConnection(*args, **kwargs)
 
 
 def SW_CASValueList(*args, **kwargs):
     ''' Return a CASValueList (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.SW_CASValueList(*args, **kwargs)
 
 
 def SW_CASFormatter(*args, **kwargs):
     ''' Return a CASFormatter (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.SW_CASFormatter(*args, **kwargs)
 
 
 def SW_CASConnectionEventWatcher(*args, **kwargs):
     ''' Return a CASConnectionEventWatcher (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.SW_CASConnectionEventWatcher(*args, **kwargs)
 
 
 def SW_CASDataBuffer(*args, **kwargs):
     ''' Return a CASDataBuffer (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.SW_CASDataBuffer(*args, **kwargs)
 
 
 def SW_CASError(*args, **kwargs):
     ''' Return a CASError (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.SW_CASError(*args, **kwargs)
 
 
 def InitializeTK(*args, **kwargs):
     ''' Initialize the TK subsystem (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
+    if not _pyswat_loaded:
+        _pyswat_error()
     return _pyswat.InitializeTK(*args, **kwargs)
 
 

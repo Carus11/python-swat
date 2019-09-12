@@ -18,10 +18,23 @@
 
 ''' Install the SAS Scripting Wrapper for Analytics Transfer (SWAT) module '''
 
+import contextlib
 import glob
 import io
 import os
-from setuptools import setup, find_packages
+import pipes
+import re
+import shutil
+import stat
+import subprocess
+import sys
+import tempfile
+from setuptools.command.build_ext import build_ext
+from setuptools import setup, find_packages, Extension
+
+LIBSWAT_ROOT = 'gitlab.sas.com/kesmit/go-libswat'
+GO_GET_FLAGS  = '-insecure'
+GO_BUILD_FLAGS = ''
 
 
 def get_file(fname):
@@ -30,23 +43,125 @@ def get_file(fname):
         return infile.read()
 
 
+class BuildExtCommand(build_ext):
+    ''' Custom build command for Go extension '''
+
+    def build_extension(self, ext):
+        ''' Build libswat.a before building the extension '''
+        platform = sys.platform.lower()
+        if platform.startswith('win'):
+            platform = 'win'
+        elif platform.startswith('darwin'):
+            platform = 'osx'
+        else:
+            platform = 'unix'
+
+        with self._tmpdir() as tempdir:
+            libswat_root = os.environ.get('LIBSWAT_ROOT', LIBSWAT_ROOT)
+            src_path = os.path.join(tempdir, 'src')
+            if platform == 'win':
+                root_path = os.path.join(src_path, libswat_root.replace('/', '\\'))
+            else:
+                root_path = os.path.join(src_path, libswat_root)
+            libswat_a = os.path.join(root_path, 'libswat.a')
+
+            os.makedirs(src_path)
+
+            env = {str('GOPATH'): tempdir}
+
+            cmd = ['go', 'get', '-d'] + \
+                  [x for x in os.environ.get('GO_GET_FLAGS', GO_GET_FLAGS).split() if x] + \
+                  [libswat_root]
+            try:
+                self._check_call(cmd, src_path, env)
+            except:
+                pass
+            try:
+                self._check_call(cmd, src_path, env)
+            except:
+                pass
+
+            # Set os x build target
+            if platform == 'osx':
+                plat = os.environ.get('PLAT', '-10.7-').split('-')
+                if len(plat) > 1 and re.match(r'^\d+\.\d+', plat[1]):
+                    env[str('MACOSX_DEPLOYMENT_TARGET')] = plat[1]
+                # Use older compiler if available to support more versions of OSX
+                if os.path.isfile('/usr/bin/gcc'):
+                    env[str('CC')] = str('/usr/bin/gcc')
+
+            cmd = ['go', 'build', '-buildmode=c-archive'] + \
+                  [x for x in os.environ.get('GO_BUILD_FLAGS', GO_BUILD_FLAGS).split() if x] + \
+                  ['-o', libswat_a]
+            self._check_call(cmd, root_path, env)
+
+            ext.extra_compile_args.append('-Wno-unused-variable')
+            ext.extra_compile_args.append('-Wno-unused-label')
+            ext.extra_compile_args.append('-Wno-unused-function')
+            ext.extra_compile_args.append('-Wno-visibility')
+            ext.extra_compile_args.append('-Wno-strict-prototypes')
+
+            if root_path not in ext.include_dirs:
+                ext.include_dirs.append(root_path)
+
+            if libswat_a not in ext.extra_link_args:
+                ext.extra_link_args.append(os.path.join(root_path, 'libswat.a'))
+
+            if platform == 'win':
+                prefix = getattr(sys, 'real_prefix', sys.prefix)
+                libs = ['-L%s' % os.path.join(prefix, 'libs'),
+                        '-lpython%s%s' % tuple(sys.version_info[:2])]
+
+                cmd = ['gcc', os.path.abspath(os.path.join('src', 'pyswat.c'))] + \
+                      ext.extra_link_args + \
+                      ['-D', 'MS_WIN64', '-O2'] + \
+                      ['-I%s' % x for x in ext.include_dirs] + \
+                      ['-I%s' % x for x in self.compiler.include_dirs] + \
+                      ext.extra_compile_args + \
+                      libs + ['-fpic', '-shared'] + \
+                      ['-o', os.path.abspath(self.get_ext_fullpath(ext.name))]
+                self._check_call(cmd, os.getcwd(), env)
+
+                return
+
+            build_ext.build_extension(self, ext)
+
+    def _check_call(self, cmd, cwd, env):
+        ''' Run command and check return value '''
+        envparts = ['{}={}'.format(k, pipes.quote(v)) for k, v in sorted(tuple(env.items()))]
+        print('$ {}'.format(' '.join(envparts + [pipes.quote(p) for p in cmd])), file=sys.stderr)
+        subprocess.check_call(cmd, cwd=cwd, env=dict(os.environ, **env))
+
+    @contextlib.contextmanager
+    def _tmpdir(self):
+        tempdir = tempfile.mkdtemp()
+        try:
+            yield tempdir
+        finally:
+            def err(action, name, exc):  # pragma: no cover (windows)
+                ''' windows: can't remove readonly files, make them writeable! '''
+                os.chmod(name, stat.S_IWRITE)
+                action(name)
+            shutil.rmtree(tempdir, onerror=err)
+
+
 setup(
     zip_safe=False,
     name='swat',
-    version='1.5.2-dev',
+    version='1.5.3-dev',
     description='SAS Scripting Wrapper for Analytics Transfer (SWAT)',
     long_description=get_file('README.md'),
     long_description_content_type='text/markdown',
     author='SAS',
     author_email='Kevin.Smith@sas.com',
     url='http://github.com/sassoftware/python-swat/',
-    license='Apache v2.0 (SWAT) + SAS Additional Functionality (SAS TK)',
+    license='Apache v2.0 (SWAT)',
     packages=find_packages(),
     package_data={
         'swat': ['lib/*/*.*', 'tests/datasources/*.*'],
     },
     install_requires=[
-        'pandas >= 0.16.0',
+        'pandas >= 0.18.0',
         'six >= 1.9.0',
         'requests',
     ],
@@ -63,6 +178,11 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
         'Topic :: Scientific/Engineering',
     ],
+    cmdclass={
+        'build_ext': BuildExtCommand,
+    },
+    ext_modules=[Extension('_pyswat', ['src/pyswat.c'])],
 )

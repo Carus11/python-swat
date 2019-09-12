@@ -128,12 +128,6 @@ register_option('cas.protocol', 'string',
                 'Using "http" or "https" will use the REST interface.',
                 environ='CASPROTOCOL')
 
-register_option('cas.trace_objects', 'boolean', check_boolean, False,
-                'Prints debugging information on object allocations (developer use only).')
-
-register_option('cas.trace_strings', 'boolean', check_boolean, False,
-                'Prints debugging information on string allocations (developer use only).')
-
 
 def check_severity(sev):
     ''' Make sure the severity is None or an int '''

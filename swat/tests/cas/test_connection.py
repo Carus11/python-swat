@@ -477,8 +477,6 @@ class TestConnection(tm.TestCase):
         self.assertEqual(out['Column'][0], 'MSRP')
 
     def test_datamsghandler(self):
-        unittest.TestCase.skipTest(self, 'skipping data message handlers')        
-
         if self.s._protocol in ['http', 'https']:
             unittest.TestCase.skipTest(self, 'REST does not support data messages')
         
@@ -657,7 +655,6 @@ class TestConnection(tm.TestCase):
             s.serverstatus()
 
     def test_session_context(self):
-        self.s.setsessopt(locale='en_US')
         self.assertEqual(self.s.getsessopt('locale').locale, 'en_US')
         with self.s.session_context(locale='fr'):
             self.assertEqual(self.s.getsessopt('locale').locale, 'fr')

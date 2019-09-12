@@ -248,8 +248,7 @@ class TestConfig(tm.TestCase):
                          ['dataset', 'debug', 'exception_on_severity',
                           'hostname', 'missing',
                           'port', 'print_messages', 'protocol',
-                          'trace_actions', 'trace_objects', 'trace_strings',
-                          'trace_ui_actions'])
+                          'trace_actions', 'trace_ui_actions'])
 
         with self.assertRaises(SWATOptionError):
             get_suboptions('cas.foo')
