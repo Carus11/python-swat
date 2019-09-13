@@ -1,0 +1,51 @@
+{% set name = 'swat' %}
+{% set version = '1.5.3' %}
+{% set build = '0' %}
+
+package:
+    name: {{ name }}
+    version: {{ version }}
+
+source:
+    path: ..
+
+build:
+    number: {{ build }}
+    script: python -m pip install --no-deps --ignore-installed .
+
+requirements:
+    build:
+        - python
+        - pip
+        - pandas
+        - six
+        - requests
+        - wheel
+    run:
+        - python
+        - pandas
+        - six
+        - requests
+
+outputs:
+    - type: wheel
+
+test:
+    imports:
+        - swat
+    requires:
+        - nose
+    commands:
+        - nosetests -v swat.tests.cas.test_basics:TestBasics.test_summary
+
+about:
+    home: https://github.com/sassoftware/python-swat
+    license: Apache 2.0
+    license_file: LICENSE.md
+    summary: SAS Viya Python Client
+    doc_url: https://sassoftware.github.io/python-swat/index.html
+    dev_url: https://github.com/sassoftware/python-swat
+
+extra:
+    recipe-maintainers:
+        - kesmit13
