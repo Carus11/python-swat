@@ -28,7 +28,7 @@ requirements:
         - requests
 
 outputs:
-    - type: wheel
+    - type: conda
 
 test:
     imports:
