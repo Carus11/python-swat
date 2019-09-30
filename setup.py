@@ -50,8 +50,8 @@ class BuildExtCommand(build_ext):
         ''' Build libswat.a before building the extension '''
         try:
             self._check_call(['go', 'version'], os.getcwd(), {},
-                             stderr=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL)
+                             stderr=getattr(subprocess, 'DEVNULL', None),
+                             stdout=getattr(subprocess, 'DEVNULL', None))
         except subprocess.CalledProcessError:
             raise RuntimeError('The Go tools do not appear to be installed.  '
                                'Make sure that they are installed '
@@ -60,8 +60,8 @@ class BuildExtCommand(build_ext):
 
         try:
             self._check_call(['swig', '-version'], os.getcwd(), {},
-                             stderr=subprocess.DEVNULL,
-                             stdout=subprocess.DEVNULL)
+                             stderr=getattr(subprocess, 'DEVNULL', None),
+                             stdout=getattr(subprocess, 'DEVNULL', None))
         except subprocess.CalledProcessError:
             raise RuntimeError('SWIG does not appear to be installed.  '
                                'Make sure that it is installed '
@@ -116,6 +116,8 @@ class BuildExtCommand(build_ext):
                    os.path.join(root_path, 'swat.i')]
             self._check_call(cmd, root_path, env)
 
+            ext.sources.append(os.path.join(src_path, 'pyswat.c'))
+
             cmd = ['go', 'build', '-buildmode=c-archive'] + \
                   [x for x in os.environ.get('GO_BUILD_FLAGS', GO_BUILD_FLAGS).split() if x] + \
                   ['-o', libswat_a]
@@ -138,7 +140,7 @@ class BuildExtCommand(build_ext):
                 libs = ['-L%s' % os.path.join(prefix, 'libs'),
                         '-lpython%s%s' % tuple(sys.version_info[:2])]
 
-                cmd = ['gcc', os.path.abspath(os.path.join('src', 'pyswat.c'))] + \
+                cmd = ['gcc'] + ext.sources + \
                       ext.extra_link_args + \
                       ['-D', 'MS_WIN64', '-O2'] + \
                       ['-I%s' % x for x in ext.include_dirs] + \
@@ -155,7 +157,7 @@ class BuildExtCommand(build_ext):
     def _check_call(self, cmd, cwd, env, stdout=None, stderr=None):
         ''' Run command and check return value '''
         envparts = ['{}={}'.format(k, pipes.quote(v)) for k, v in sorted(tuple(env.items()))]
-        print('$ {}'.format(' '.join(envparts + [pipes.quote(p) for p in cmd])), file=sys.stderr)
+        sys.stderr.write('$ {}\n'.format(' '.join(envparts + [pipes.quote(p) for p in cmd])))
         subprocess.check_call(cmd, cwd=cwd, env=dict(os.environ, **env), stdout=stdout, stderr=stderr)
 
     @contextlib.contextmanager
