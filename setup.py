@@ -79,15 +79,16 @@ class BuildExtCommand(build_ext):
         with self._tmpdir() as tempdir:
             libswat_root = os.environ.get('LIBSWAT_ROOT', LIBSWAT_ROOT)
             src_path = os.path.join(tempdir, 'src')
+            mod_path = os.path.join(tempdir, 'pkg', 'mod')
+            libswat_a = os.path.join(src_path, 'libswat.a')
             if platform == 'win':
                 root_path = os.path.join(src_path, libswat_root.replace('/', '\\'))
             else:
                 root_path = os.path.join(src_path, libswat_root)
-            libswat_a = os.path.join(root_path, 'libswat.a')
 
             os.makedirs(src_path)
 
-            env = {str('GOPATH'): tempdir}
+            env = {str('GOPATH'): tempdir, str('GO111MODULE'): 'auto'}
 
             cmd = ['go', 'get', '-d'] + \
                   [x for x in os.environ.get('GO_GET_FLAGS', GO_GET_FLAGS).split() if x] + \
@@ -133,7 +134,7 @@ class BuildExtCommand(build_ext):
                 ext.include_dirs.append(root_path)
 
             if libswat_a not in ext.extra_link_args:
-                ext.extra_link_args.append(os.path.join(root_path, 'libswat.a'))
+                ext.extra_link_args.append(libswat_a)
 
             if platform == 'win':
                 prefix = getattr(sys, 'real_prefix', sys.prefix)
