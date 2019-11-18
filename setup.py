@@ -33,6 +33,8 @@ from setuptools.command.build_ext import build_ext
 from setuptools import setup, find_packages, Extension
 
 LIBSWAT_ROOT = 'gitlab.sas.com/kesmit/go-libswat'
+LIBSWAT_DEV = os.path.expanduser(os.path.join('~', 'gitlab', 'go-libswat'))
+LIBSWAT_DEV = None
 GO_GET_FLAGS  = '-insecure'
 GO_BUILD_FLAGS = ''
 
@@ -79,27 +81,27 @@ class BuildExtCommand(build_ext):
         with self._tmpdir() as tempdir:
             libswat_root = os.environ.get('LIBSWAT_ROOT', LIBSWAT_ROOT)
             src_path = os.path.join(tempdir, 'src')
+            mod_path = os.path.join(tempdir, 'pkg', 'mod')
+            libswat_a = os.path.join(src_path, 'libswat.a')
             if platform == 'win':
                 root_path = os.path.join(src_path, libswat_root.replace('/', '\\'))
             else:
                 root_path = os.path.join(src_path, libswat_root)
-            libswat_a = os.path.join(root_path, 'libswat.a')
 
             os.makedirs(src_path)
 
-            env = {str('GOPATH'): tempdir}
+            env = {str('GOPATH'): os.pathsep.join([x for x in
+                                      [tempdir, os.environ.get('GOPATH', None)] if x]),
+                   str('GO111MODULE'): 'auto'}
+
+            if LIBSWAT_DEV and os.path.isdir(LIBSWAT_DEV):
+                sys.stderr.write('$ cp -r %s %s\n' % (LIBSWAT_DEV, root_path))
+                shutil.copytree(LIBSWAT_DEV, root_path)
 
             cmd = ['go', 'get', '-d'] + \
                   [x for x in os.environ.get('GO_GET_FLAGS', GO_GET_FLAGS).split() if x] + \
                   [libswat_root]
-            try:
-                self._check_call(cmd, src_path, env)
-            except:
-                pass
-            try:
-                self._check_call(cmd, src_path, env)
-            except:
-                pass
+            self._check_call(cmd, src_path, env)
 
             # Set os x build target
             if platform == 'osx':
@@ -110,13 +112,15 @@ class BuildExtCommand(build_ext):
                 if os.path.isfile('/usr/bin/gcc'):
                     env[str('CC')] = str('/usr/bin/gcc')
 
+            tmp_src = os.path.abspath(os.path.join(self.get_ext_fullpath(ext.name), '..', '..'))
+
             # Run swig to get the Python interface file
             cmd = ['swig', '-outdir', src_path, '-python', '-builtin',
-                   '-module', 'pyswat', '-o', os.path.join(src_path, 'pyswat.c'), 
+                   '-module', 'pyswat', '-o', os.path.join(tmp_src, 'pyswat.c'), 
                    os.path.join(root_path, 'swat.i')]
             self._check_call(cmd, root_path, env)
 
-            ext.sources.append(os.path.join(src_path, 'pyswat.c'))
+            ext.sources.append(os.path.join(tmp_src, 'pyswat.c'))
 
             cmd = ['go', 'build', '-buildmode=c-archive'] + \
                   [x for x in os.environ.get('GO_BUILD_FLAGS', GO_BUILD_FLAGS).split() if x] + \
@@ -128,12 +132,16 @@ class BuildExtCommand(build_ext):
             ext.extra_compile_args.append('-Wno-unused-function')
             ext.extra_compile_args.append('-Wno-visibility')
             ext.extra_compile_args.append('-Wno-strict-prototypes')
+            ext.extra_compile_args.append('-Wno-missing-braces')
 
             if root_path not in ext.include_dirs:
                 ext.include_dirs.append(root_path)
 
+            if src_path not in ext.include_dirs:
+                ext.include_dirs.append(src_path)
+
             if libswat_a not in ext.extra_link_args:
-                ext.extra_link_args.append(os.path.join(root_path, 'libswat.a'))
+                ext.extra_link_args.append(libswat_a)
 
             if platform == 'win':
                 prefix = getattr(sys, 'real_prefix', sys.prefix)
