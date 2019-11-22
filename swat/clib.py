@@ -26,6 +26,7 @@ from __future__ import print_function, division, absolute_import, unicode_litera
 import glob
 import os
 import platform
+import struct
 import sys
 from .utils.compat import PY3, WIDE_CHARS, a2u
 from .exceptions import SWATError
