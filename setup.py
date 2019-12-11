@@ -34,7 +34,6 @@ from setuptools import setup, find_packages, Extension
 
 LIBSWAT_ROOT = 'gitlab.sas.com/kesmit/go-libswat'
 LIBSWAT_DEV = os.path.expanduser(os.path.join('~', 'gitlab', 'go-libswat'))
-LIBSWAT_DEV = None
 GO_GET_FLAGS  = '-insecure'
 GO_BUILD_FLAGS = ''
 
@@ -159,6 +158,9 @@ class BuildExtCommand(build_ext):
                 self._check_call(cmd, os.getcwd(), env)
 
                 return
+
+            if platform == 'osx':
+                ext.extra_link_args.extend(['-framework', 'Cocoa'])
 
             build_ext.build_extension(self, ext)
 

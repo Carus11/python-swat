@@ -90,27 +90,9 @@ def SW_CASError(*args, **kwargs):
 
 def InitializeTK(*args, **kwargs):
     ''' Initialize the TK subsystem (importing _pyswat as needed) '''
-    if _pyswat is None:
-        _import_pyswat()
-
-    # Patch ppc linux path
-    set_tkpath_env = 'ppc' in platform.machine() and 'TKPATH' not in os.environ
-    if set_tkpath_env and args:
-        os.environ['TKPATH'] = args[0]
-
-    try:
-        out = _pyswat.InitializeTK(*args, **kwargs)
-
-    finally:
-        if set_tkpath_env:
-            del os.environ['TKPATH']
-
-        # Override TKPATH after initialization so that other TK applications
-        # won't be affected (Windows only).
-        if sys.platform.lower().startswith('win') and 'TKPATH' not in os.environ:
-            os.environ['TKPATH'] = os.pathsep
-
-    return out
+    if not _pyswat_loaded:
+        _pyswat_error()
+    return 0
 
 
 def errorcheck(expr, obj):

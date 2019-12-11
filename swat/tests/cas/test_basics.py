@@ -24,7 +24,7 @@
 
 import datetime
 import os
-import pandas
+import pandas as pd
 import six
 import swat
 import swat.utils.testing as tm
@@ -274,16 +274,17 @@ class TestBasics(tm.TestCase):
             self.assertEqual(data['Int64'].iloc[0], 9223372036854775807)
             self.assertEqual(type(data['Int64'].iloc[0]), np.int64)
 
-        self.assertEqual(data['Date'].iloc[0], datetime.date(1963, 5, 19))
-        self.assertEqual(type(data['Date'].iloc[0]), datetime.date)
+
+        self.assertEqual(data['Date'].iloc[0], pd.Timestamp('1963-05-19 00:00:00'))
+        self.assertEqual(type(data['Date'].iloc[0]), pd.Timestamp)
         #self.assertEqual(type(data['Date'].iloc[0]), datetime.Date)
 
-        self.assertEqual(data['Time'].iloc[0], datetime.time(11, 12, 13, 141516))
-        self.assertEqual(type(data['Time'].iloc[0]), datetime.time)
+        self.assertEqual(data['Time'].iloc[0], pd.Timedelta('0 days 11:12:13.141516'))
+        self.assertEqual(type(data['Time'].iloc[0]), pd.Timedelta)
         #self.assertEqual(type(data['Time'].iloc[0]), datetime.Time)
 
-        self.assertEqual(data['Datetime'].iloc[0], pandas.to_datetime('1963-05-19 11:12:13.141516'))
-        self.assertEqual(type(data['Datetime'].iloc[0]), pandas.Timestamp)
+        self.assertEqual(data['Datetime'].iloc[0], pd.Timestamp('1963-05-19 11:12:13.141516'))
+        self.assertEqual(type(data['Datetime'].iloc[0]), pd.Timestamp)
         #self.assertEqual(type(data['Datetime'].iloc[0]), datetime.Datetime)
 
         self.assertEqual(data['DecSext'].iloc[0], '12345678901234567890.123456789')
@@ -396,7 +397,7 @@ class TestBasics(tm.TestCase):
 
         myFile = os.path.join(os.path.dirname(st.__file__), 'datasources', 'cars.csv')
 
-        cars = pandas.io.parsers.read_csv(myFile)
+        cars = pd.io.parsers.read_csv(myFile)
 
         dmh = swat.datamsghandlers.CSV(myFile, nrecs=20)
 

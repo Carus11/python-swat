@@ -48,6 +48,24 @@ from .utils.params import ParamManager
 # pylint: disable=C0330
 
 
+class CASTableArray:
+    ''' Array interface wrapper '''
+
+    def __init__(self, tbl):
+        self._tbl = tbl
+        arr, strings = errorcheck(tbl.toArrayInterface('strict'), self._tbl)
+        self.__array_interface__ = arr
+        self.strings = strings
+
+    @property
+    def dtypes(self):
+        return getattr(self, '__array_interface__', {'descr':[]})['descr']
+
+    def __del__(self):
+        if self._tbl and getattr(self, '__array_interface__', None):
+            self._tbl.freeBuffer(self.__array_interface__['data'][0])
+
+
 def casvaluelist2py(_sw_values, soptions, length=None):
     '''
     Convert a SWIG CASValueList to a Python dictionary
@@ -256,6 +274,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     dates = []
     datetimes = []
     intmiss = {}
+    strcols = []
     for i in range(ncolumns):
         col = SASColumnSpec.fromtable(_sw_table, i)
         if col.attrs.get('MIMEType'):
@@ -285,6 +304,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
         elif dtype in set(['char', 'varchar']):
             dtypes.append((col.name, '|U%d' % (col.width or 1)))
             colinfo[col.name] = col
+            strcols.append(col.name)
         elif dtype == 'int32':
             dtypes.append((col.name, 'i4'))
             colinfo[col.name] = col
@@ -305,6 +325,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
         elif dtype in set(['binary', 'varbinary']):
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
+            strcols.append(col.name)
         elif dtype == 'int32-array':
             for elem in range(col.size[1]):
                 col = SASColumnSpec.fromtable(_sw_table, i, elem=elem)
@@ -327,12 +348,25 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     # Numpy doesn't like unicode column names in Python 2, so map them to utf-8
     dtypes = [(a2n(x[0], 'utf-8'), x[1]) for x in dtypes]
 
+    # Use array interface
+    arr = CASTableArray(_sw_table)
+    df = pd.DataFrame(np.array(arr, copy=False), copy=False)
+    df = df.loc[:, ~df.columns.str.endswith('--LENGTH--')]
+    for col in strcols:
+        df[col] = df[col].map(arr.strings)
+
+    df = df.set_index(df.columns[-1])
+    df.index.name = None
+    df.index = df.index - 1
+
+    kwargs['data'] = df
+
     # Create a np.array and fill it
-    kwargs['data'] = np.array(_sw_table.toTuples(a2n(
-                         get_option('encoding_errors'), 'utf-8'),
-                         casdt.cas2python_datetime, casdt.cas2python_date,
-                         casdt.cas2python_time),
-                         dtype=dtypes)
+#   kwargs['data'] = np.array(_sw_table.toTuples(a2n(
+#                        get_option('encoding_errors'), 'utf-8'),
+#                        casdt.cas2python_datetime, casdt.cas2python_date,
+#                        casdt.cas2python_time),
+#                        dtype=dtypes)
 
     # Short circuit for numpy arrays
 #   if tformat == 'numpy_array':
