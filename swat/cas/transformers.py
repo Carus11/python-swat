@@ -351,9 +351,6 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     # Use array interface
     arr = CASTableArray(_sw_table)
     df = pd.DataFrame(np.array(arr, copy=False), copy=False)
-    df = df.loc[:, ~df.columns.str.endswith('--LENGTH--')]
-    for col in strcols:
-        df[col] = df[col].map(arr.strings)
 
     df = df.set_index(df.columns[-1])
     df.index.name = None
