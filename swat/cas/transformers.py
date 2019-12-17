@@ -48,7 +48,7 @@ from .utils.params import ParamManager
 # pylint: disable=C0330
 
 
-class CASTableArray:
+class CASArray:
     ''' Array interface wrapper '''
 
     def __init__(self, tbl):
@@ -349,14 +349,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     dtypes = [(a2n(x[0], 'utf-8'), x[1]) for x in dtypes]
 
     # Use array interface
-    arr = CASTableArray(_sw_table)
-    df = pd.DataFrame(np.array(arr, copy=False), copy=False)
-
-    df = df.set_index(df.columns[-1])
-    df.index.name = None
-    df.index = df.index - 1
-
-    kwargs['data'] = df
+    kwargs['data'] = np.array(CASArray(_sw_table), copy=False)
 
     # Create a np.array and fill it
 #   kwargs['data'] = np.array(_sw_table.toTuples(a2n(
@@ -370,6 +363,10 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
 #       return kwargs['data']
 
     cdf = SASDataFrame(**kwargs)
+
+    cdf = cdf.set_index(cdf.columns[-1])
+    cdf.index.name = None
+    cdf.index = cdf.index - 1
 
     # Map column names back to unicode in pandas
     cdf.columns = [a2u(x[0], 'utf-8') for x in dtypes]
