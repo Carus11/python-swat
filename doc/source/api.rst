@@ -453,6 +453,7 @@ Serialization / IO / Conversion
    CASTable.to_dense
    CASTable.to_string
    CASTable.to_clipboard
+   CASTable.to_cas_table
 
 Utilities
 ~~~~~~~~~

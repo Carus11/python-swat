@@ -3416,18 +3416,21 @@ class CASTable(ParamManager, ActionParamManager):
         out.columns.name = None
         return out[columns]
 
-    def _materialize(self, casout=None, inplace=False, prefix=None, suffix=None):
+    def _materialize(self, casout=None, inplace=False, replace=False,
+                     prefix=None, suffix=None):
         '''
-        Materialize a table and options into an in-memory table
+        Materialize a table and options into an in-memory table on the server
 
         Parameters
         ----------
         casout : dict, optional
             The CAS output table definition
         inplace : bool, optional
-            Should the output table be overwritten?
+            Should the input table be overwritten?
             NOTE: If `prefix` or `suffix` are used, this option is only
                   used to determine the table's base name.
+        replace : bool, optional
+            Should an existing table with the same name be replaced?
         prefix : string, optional
             A string to use as the table name prefix
         suffix : string, optional
@@ -3455,10 +3458,14 @@ class CASTable(ParamManager, ActionParamManager):
         else:
             newname = _gen_table_name()
 
+        if inplace:
+            replace = True
+
         newname = '%s%s%s' % ((prefix or ''), newname, (suffix or ''))
 
         return self._retrieve('table.partition',
-                              casout=dict(name=newname, caslib=caslib))['casTable']
+                              casout=dict(name=newname, caslib=caslib,
+                                          replace=replace))['casTable']
 
     def abs(self):
         '''
@@ -7019,6 +7026,24 @@ class CASTable(ParamManager, ActionParamManager):
             buf.write(u'data size: %s\n' % details['DataSize'])
             buf.write(u'vardata size: %s\n' % details['VardataSize'])
             buf.write(u'memory usage: %s\n' % details['AllocatedMemory'])
+
+    def to_cas_table(self, casout=None, inplace=False):
+        '''
+        Materialize a table and options into an in-memory table on the server
+
+        Parameters
+        ----------
+        casout : dict, optional
+            The CAS output table definition
+        inplace : bool, optional
+            Should the input table be overwritten?
+
+        Returns
+        -------
+        :class:`CASTable`
+
+        '''
+        return self._materialize(casout=casout, inplace=inplace)
 
     def to_frame(self, sample_pct=None, sample_seed=None, sample=False,
                  stratify_by=None, **kwargs):

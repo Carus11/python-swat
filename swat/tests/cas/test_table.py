@@ -5202,6 +5202,46 @@ class TestCASTable(tm.TestCase):
         self.assertTrue(set(tbl2.to_params().keys()), set(['name']))
         self.assertTrue(set(tbl2.to_params().keys()), set(['name', 'replace', 'promote']))
 
+    def test_to_cas_table(self):
+        tbl = self.table
+        df = self.get_cars_df()
+
+        mazda = tbl.query('Make = "Mazda"')
+        mazda_df = df.query('Make == "Mazda"')
+
+        try:
+            mazda2 = None
+            mazda2 = mazda.to_cas_table()
+            self.assertEqual(len(mazda), len(mazda_df))
+            self.assertEqual(len(mazda), len(mazda2))
+            self.assertNotEqual(len(tbl), len(mazda2))
+            self.assertNotEqual(mazda2.params['name'], mazda.params['name'])
+        finally:
+            if mazda2 is not None:
+                mazda2.droptable()
+
+        try:
+            mazda2 = None
+            mazda2 = mazda.to_cas_table(casout=dict(name='mazdafoo'))
+            self.assertEqual(len(mazda), len(mazda_df))
+            self.assertEqual(len(mazda), len(mazda2))
+            self.assertNotEqual(len(tbl), len(mazda2))
+            self.assertNotEqual(mazda2.params['name'], mazda.params['name'])
+        finally:
+            if mazda2 is not None:
+                mazda2.droptable()
+
+        try:
+            mazda2 = None
+            mazda2 = mazda.to_cas_table(inplace=True)
+            self.assertEqual(len(mazda2), len(mazda_df))
+            self.assertEqual(len(mazda), len(mazda2))
+            self.assertEqual(len(tbl), len(mazda2))
+            self.assertEqual(mazda2.params['name'], mazda.params['name'])
+        finally:
+            if mazda2 is not None:
+                mazda2.droptable()
+
 
 if __name__ == '__main__':
     tm.runtests()
