@@ -274,7 +274,6 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     dates = []
     datetimes = []
     intmiss = {}
-    strcols = []
     for i in range(ncolumns):
         col = SASColumnSpec.fromtable(_sw_table, i)
         if col.attrs.get('MIMEType'):
@@ -304,7 +303,6 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
         elif dtype in set(['char', 'varchar']):
             dtypes.append((col.name, '|U%d' % (col.width or 1)))
             colinfo[col.name] = col
-            strcols.append(col.name)
         elif dtype == 'int32':
             dtypes.append((col.name, 'i4'))
             colinfo[col.name] = col
@@ -313,7 +311,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
             dtypes.append((col.name, 'i8'))
             colinfo[col.name] = col
             intmiss[col.name] = {-9223372036854775808: np.nan}
-        elif dtype in 'datetime':
+        elif dtype == 'datetime':
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
         elif dtype == 'date':
@@ -325,7 +323,6 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
         elif dtype in set(['binary', 'varbinary']):
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
-            strcols.append(col.name)
         elif dtype == 'int32-array':
             for elem in range(col.size[1]):
                 col = SASColumnSpec.fromtable(_sw_table, i, elem=elem)
@@ -343,6 +340,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
                 col = SASColumnSpec.fromtable(_sw_table, i, elem=elem)
                 dtypes.append((col.name, 'f8'))
                 colinfo[col.name] = col
+
     kwargs['colinfo'] = colinfo
 
     # Numpy doesn't like unicode column names in Python 2, so map them to utf-8
@@ -351,16 +349,9 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     # Use array interface
     kwargs['data'] = np.array(CASArray(_sw_table), copy=False)
 
-    # Create a np.array and fill it
-#   kwargs['data'] = np.array(_sw_table.toTuples(a2n(
-#                        get_option('encoding_errors'), 'utf-8'),
-#                        casdt.cas2python_datetime, casdt.cas2python_date,
-#                        casdt.cas2python_time),
-#                        dtype=dtypes)
-
     # Short circuit for numpy arrays
-#   if tformat == 'numpy_array':
-#       return kwargs['data']
+    if tformat == 'numpy_array':
+        return kwargs['data']
 
     cdf = SASDataFrame(**kwargs)
 
