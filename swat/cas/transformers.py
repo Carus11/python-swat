@@ -32,7 +32,7 @@ import re
 import six
 from .utils import datetime as casdt
 from .. import clib
-from ..utils.compat import (a2u, a2n, int32, int64, float64, text_types,
+from ..utils.compat import (a2u, a2n, a2b, int32, int64, float64, text_types,
                             binary_types, int32_types, int64_types,
                             float64_types, items_types, dict_types,
                             MAX_INT32, MIN_INT32)
@@ -153,7 +153,7 @@ def _caslist2py(_sw_value, soptions, echk, connection=None):
         return output
 
 
-def ctb2tabular(_sw_table, soptions='', connection=None):
+def ctb2tabular(_sw_table, soptions='', connection=None, _api=None):
     '''
     Convert SWIG table to a tabular structure based on cas.dataset.format option
 
@@ -165,6 +165,9 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
        soptions of connection object
     connection : CAS object
        The connection to associate generated CASTable objects with
+    _api : string, optional
+       Indicates whether the reader should use the 'sharedmem'
+       or 'cfunc' API.  Internal use only.
 
     Returns
     -------
@@ -262,6 +265,7 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
 
     # Construct columns
     ncolumns = check(_sw_table.getNColumns(), _sw_table)
+    nrows = check(_sw_table.getNRows(), _sw_table)
     caslib = None
     tablename = None
     castable = None
@@ -274,11 +278,15 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     dates = []
     datetimes = []
     intmiss = {}
+    data = []
     for i in range(ncolumns):
         col = SASColumnSpec.fromtable(_sw_table, i)
+
         if col.attrs.get('MIMEType'):
             mimetypes[col.name] = col.attrs.get('MIMEType')
+
         lowercolname = col.name.lower()
+
         if lowercolname == 'caslib':
             caslib = col.name
         elif lowercolname == 'tablename':
@@ -291,7 +299,9 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
             rowscol = col.name
         elif lowercolname == 'columns':
             columnscol = col.name
+
         dtype = col.dtype
+
         if dtype == 'double':
             dtypes.append((col.name, 'f8'))
             colinfo[col.name] = col
@@ -300,46 +310,129 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
                     datetimes.append(col.name)
                 elif date_regex.match(col.format):
                     dates.append(col.name)
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    row.append(check(_sw_table.getDoubleValue(j, i), _sw_table))
+                data.append(row)
+
         elif dtype in set(['char', 'varchar']):
-            dtypes.append((col.name, '|U%d' % (col.width or 1)))
+            dtypes.append((col.name, 'U%d' % (col.width or 1)))
             colinfo[col.name] = col
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    row.append(check(_sw_table.getStringValue(j, i), _sw_table))
+                data.append(row)
+
         elif dtype == 'int32':
             dtypes.append((col.name, 'i4'))
             colinfo[col.name] = col
             intmiss[col.name] = {-2147483648: np.nan}
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    row.append(check(_sw_table.getInt32Value(j, i), _sw_table))
+                data.append(row)
+
         elif dtype == 'int64':
             dtypes.append((col.name, 'i8'))
             colinfo[col.name] = col
             intmiss[col.name] = {-9223372036854775808: np.nan}
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    row.append(check(_sw_table.getInt64Value(j, i), _sw_table))
+                data.append(row)
+
         elif dtype == 'datetime':
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    row.append(casdt.cas2python_datetime(check(_sw_table.getDatetimeValue(j, i), _sw_table)))
+                data.append(row)
+
         elif dtype == 'date':
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    d = casdt.cas2python_date(check(_sw_table.getDateValue(j, i), _sw_table))
+                    row.append(datetime.datetime(d.year, d.month, d.day))
+                data.append(row)
+
         elif dtype == 'time':
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    d = casdt.cas2python_time(check(_sw_table.getTimeValue(j, i), _sw_table))
+                    d = datetime.timedelta(hours=d.hour, minutes=d.minute,
+                                           seconds=d.second, microseconds=d.microsecond)
+                    row.append(d)
+                data.append(row)
+
         elif dtype in set(['binary', 'varbinary']):
             dtypes.append((col.name, 'O'))
             colinfo[col.name] = col
+
+            if _api == 'cfunc':
+                row = []
+                for j in range(nrows):
+                    row.append(base64.b64decode(check(_sw_table.getBinaryBase64Value(j, i), _sw_table)))
+                data.append(row)
+
         elif dtype == 'int32-array':
             for elem in range(col.size[1]):
                 col = SASColumnSpec.fromtable(_sw_table, i, elem=elem)
                 dtypes.append((col.name, 'i4'))
                 colinfo[col.name] = col
                 intmiss[col.name] = {-2147483648: np.nan}
+
+            if _api == 'cfunc':
+                for elem in range(col.size[1]):
+                    row = []
+                    for j in range(nrows):
+                        row.append(check(_sw_table.getInt32ArrayValue(j, i, elem), _sw_table))
+                    data.append(row)
+
         elif dtype == 'int64-array':
             for elem in range(col.size[1]):
                 col = SASColumnSpec.fromtable(_sw_table, i, elem=elem)
                 dtypes.append((col.name, 'i8'))
                 colinfo[col.name] = col
                 intmiss[col.name] = {-9223372036854775808: np.nan}
+
+            if _api == 'cfunc':
+                for elem in range(col.size[1]):
+                    row = []
+                    for j in range(nrows):
+                        row.append(check(_sw_table.getInt64ArrayValue(j, i, elem), _sw_table))
+                    data.append(row)
+
         elif dtype == 'double-array':
             for elem in range(col.size[1]):
                 col = SASColumnSpec.fromtable(_sw_table, i, elem=elem)
                 dtypes.append((col.name, 'f8'))
                 colinfo[col.name] = col
+
+            if _api == 'cfunc':
+                for elem in range(col.size[1]):
+                    row = []
+                    for j in range(nrows):
+                        row.append(check(_sw_table.getDoubleArrayValue(j, i, elem), _sw_table))
+                    data.append(row)
 
     kwargs['colinfo'] = colinfo
 
@@ -347,7 +440,10 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
     dtypes = [(a2n(x[0], 'utf-8'), x[1]) for x in dtypes]
 
     # Use array interface
-    kwargs['data'] = np.array(CASArray(_sw_table), copy=False)
+    if _api == 'cfunc':
+        kwargs['data'] = np.array(list(map(tuple, zip(*data))), dtype=dtypes)
+    else:
+        kwargs['data'] = np.array(CASArray(_sw_table), copy=False)
 
     # Short circuit for numpy arrays
     if tformat == 'numpy_array':
@@ -355,9 +451,10 @@ def ctb2tabular(_sw_table, soptions='', connection=None):
 
     cdf = SASDataFrame(**kwargs)
 
-    cdf = cdf.set_index(cdf.columns[-1])
-    cdf.index.name = None
-    cdf.index = cdf.index - 1
+    if _api != 'cfunc':
+        cdf = cdf.set_index(cdf.columns[-1])
+        cdf.index.name = None
+        cdf.index = cdf.index - 1
 
     # Map column names back to unicode in pandas
     cdf.columns = [a2u(x[0], 'utf-8') for x in dtypes]

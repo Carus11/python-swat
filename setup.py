@@ -32,8 +32,13 @@ import tempfile
 from setuptools.command.build_ext import build_ext
 from setuptools import setup, find_packages, Extension
 
+platform = sys.platform.lower()
+
 LIBSWAT_ROOT = 'gitlab.sas.com/kesmit/go-libswat'
-LIBSWAT_DEV = os.path.expanduser(os.path.join('~', 'gitlab', 'go-libswat'))
+if platform.startswith('win'):
+    LIBSWAT_DEV = r'U:\gitlab\go-libswat'
+else:
+    LIBSWAT_DEV = os.path.expanduser(os.path.join('~', 'gitlab', 'go-libswat'))
 GO_GET_FLAGS  = '-insecure'
 GO_BUILD_FLAGS = ''
 
@@ -90,7 +95,7 @@ class BuildExtCommand(build_ext):
             os.makedirs(src_path)
 
             env = {str('GOPATH'): os.pathsep.join([x for x in
-                                      [tempdir, os.environ.get('GOPATH', None)] if x]),
+                                      [os.environ.get('GOPATH', None), tempdir] if x]),
                    str('GO111MODULE'): 'auto'}
 
             if LIBSWAT_DEV and os.path.isdir(LIBSWAT_DEV):
